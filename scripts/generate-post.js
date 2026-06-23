@@ -78,36 +78,73 @@ Wähle ein neues, relevantes Thema. Mögliche Richtungen: weitere Branchen (Einz
 
 Schreibe sachlich, konkret, mit Zahlen/Beispielen. Erwähne Aplano 1-2 mal natürlich als Lösung (nicht zu werblich). Nutze interne Links im Format <a href="/blog/SLUG.html">Text</a> (nur auf existierende Slugs aus der Liste oben) oder <a href="/#ranking">Gesamtranking</a>.
 
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, ohne Markdown-Codeblöcke, ohne Vorspann. Format:
+Rufe das Tool "submit_article" auf, um den Artikel einzureichen. Felder:
+- title: SEO-Titel, ca. 50-70 Zeichen
+- meta_description: ca. 140-160 Zeichen
+- tag: Kurzes Label wie "Branche: Einzelhandel" oder "Recht & Compliance"
+- breadcrumb: Kurzer Begriff für die Breadcrumb, z.B. "Einzelhandel"
+- read_minutes: Zahl (z.B. 8)
+- dek: 1-2 Sätze Einleitung (steht unter dem H1)
+- body_html: Vollständiger Artikel-Body als HTML-Fragment. NUR <h2>, <h3>, <p>, <ul>/<li>, <blockquote>, <strong> und <a> verwenden. KEIN H1, KEINE Wrapper, KEINE Bilder. 900-1300 Wörter. Mit mindestens einem <blockquote> mit einer konkreten Zahl/Statistik und mindestens zwei <h2>-Abschnitten.
+- cta_heading: Kurze Frage für die CTA-Box
+- cta_text: Ein Satz unter der CTA-Überschrift
+- faq: 2 Frage/Antwort-Paare
+- sources: 2-3 Quellenangaben`;
 
-{
-  "title": "SEO-Titel, ca. 50-70 Zeichen",
-  "meta_description": "ca. 140-160 Zeichen",
-  "tag": "Kurzes Label wie 'Branche: Einzelhandel' oder 'Recht & Compliance'",
-  "breadcrumb": "Kurzer Begriff für die Breadcrumb, z.B. 'Einzelhandel'",
-  "read_minutes": 8,
-  "dek": "1-2 Sätze Einleitung (steht unter dem H1)",
-  "body_html": "Vollständiger Artikel-Body als HTML-Fragment. NUR <h2>, <h3>, <p>, <ul>/<li>, <blockquote>, <strong> und <a> verwenden. KEIN H1, KEINE Wrapper, KEINE Bilder. 900-1300 Wörter. Mit mindestens einem <blockquote> mit einer konkreten Zahl/Statistik und mindestens zwei <h2>-Abschnitten.",
-  "cta_heading": "Kurze Frage für die CTA-Box",
-  "cta_text": "Ein Satz unter der CTA-Überschrift",
-  "faq": [
-    {"question": "Frage 1?", "answer": "Antwort, 2-4 Sätze."},
-    {"question": "Frage 2?", "answer": "Antwort, 2-4 Sätze."}
-  ],
-  "sources": ["Quelle 1", "Quelle 2", "Quelle 3"]
-}`;
+  const articleSchema = {
+    name: "submit_article",
+    description: "Submit the generated blog article in structured form.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        meta_description: { type: "string" },
+        tag: { type: "string" },
+        breadcrumb: { type: "string" },
+        read_minutes: { type: "integer" },
+        dek: { type: "string" },
+        body_html: { type: "string" },
+        cta_heading: { type: "string" },
+        cta_text: { type: "string" },
+        faq: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string" },
+              answer: { type: "string" },
+            },
+            required: ["question", "answer"],
+          },
+        },
+        sources: { type: "array", items: { type: "string" } },
+      },
+      required: [
+        "title", "meta_description", "tag", "breadcrumb", "read_minutes",
+        "dek", "body_html", "cta_heading", "cta_text", "faq", "sources",
+      ],
+    },
+  };
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 8000,
     system: systemPrompt,
-    messages: [{ role: "user", content: `Generiere den heutigen Artikel (Datum: ${germanLongDate()}). Nur das JSON-Objekt.` }],
+    tools: [articleSchema],
+    tool_choice: { type: "tool", name: "submit_article" },
+    messages: [{ role: "user", content: `Generiere den heutigen Artikel (Datum: ${germanLongDate()}).` }],
   });
 
-  const textBlock = message.content.find((b) => b.type === "text");
-  if (!textBlock) throw new Error("No text content in Claude response");
-  let raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-  return JSON.parse(raw);
+  const toolUse = message.content.find((b) => b.type === "tool_use" && b.name === "submit_article");
+  if (!toolUse) {
+    // Fallback: try to salvage JSON from a text block, in case the model
+    // didn't use the tool for some reason.
+    const textBlock = message.content.find((b) => b.type === "text");
+    if (!textBlock) throw new Error("No tool_use or text content in Claude response");
+    const raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+    return JSON.parse(raw);
+  }
+  return toolUse.input;
 }
 
 // ---- HTML building ---------------------------------------------------------
