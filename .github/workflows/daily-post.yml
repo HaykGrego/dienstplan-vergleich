@@ -1,0 +1,40 @@
+name: Daily Blog Post
+
+on:
+  schedule:
+    # Runs at 06:00 UTC every day (~08:00 CEST / 07:00 CET)
+    - cron: "0 6 * * *"
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install @anthropic-ai/sdk
+
+      - name: Generate article
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/generate-post.js
+
+      - name: Commit and push new article
+        run: |
+          git config user.name "dienstplan-blog-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add blog/
+          git diff --quiet --cached || git commit -m "Auto: neuer Blogartikel $(date -u +'%Y-%m-%d')"
+          git push
