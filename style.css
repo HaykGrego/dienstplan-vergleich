@@ -177,7 +177,16 @@ h1 em{font-style:italic; font-weight:450; color:var(--pine-deep);}
   text-align:center;
   padding:20px;
 }
-
+   /* ---------- BLOG CARD THUMBNAIL ---------- */
+   .blog-card-thumb{
+     width:100%;
+     height:148px;
+     object-fit:cover;
+     border-radius:var(--radius-sm);
+     border:1px solid var(--line);
+     display:block;
+   }
+   .blog-card.featured .blog-card-thumb{height:120px;}
 /* ---------- ARTICLE PROSE ---------- */
 .article-shell{
   max-width:740px;
